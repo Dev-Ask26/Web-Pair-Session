@@ -108,7 +108,7 @@ await ask.sendMessage(m.chat, { react: { text: "📁", key: m.key } })
 ├ ◦ goodbey
 ╰━━━━━━━━━━━━━━━╯`,
         button: { text: "CHANNEL", url: "https://whatsapp.com/channel/0029Vaj3Xnu17EmtDxTNnQ0G/488" },
-        image: "https://i.ibb.co/nNjMJy3T/x.jpg"
+        image: "https://i.ibb.co/qYG993MS/72a4e407f204.jpg"
       },
       {
         title: "BUGMENU",
@@ -120,7 +120,7 @@ await ask.sendMessage(m.chat, { react: { text: "📁", key: m.key } })
 ├ ◦ bilal-x-group
 ╰━━━━━━━━━━━━━━━╯`,
         button: { text: "CHANNEL", url: "https://whatsapp.com/channel/0029Vaj3Xnu17EmtDxTNnQ0G/488" },
-        image: "https://i.ibb.co/nNjMJy3T/x.jpg"
+        image: "https://i.ibb.co/qYG993MS/72a4e407f204.jpg"
       }
     ];
 
@@ -408,7 +408,7 @@ case "tag": {
  // Send message with image
  await devaskNotBot.sendMessage(m.chat, {
 gifPlayback: false,
- image: { url: 'welcome.png'},
+ image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg'},
  caption: teks,
  mentions: participants.map(a => a.id)
  }, { quoted: m });
@@ -566,7 +566,7 @@ default: {
 
     await devaskNotBot.sendMessage(m.key.remoteJid, {
         gifPlayback: false,
-        image: { url: "welcome.png" },
+        image: { url: "https://i.ibb.co/qYG993MS/72a4e407f204.jpg" },
         caption: "> Command not recognized, type *.menu* to see available options."
     });
     break;
