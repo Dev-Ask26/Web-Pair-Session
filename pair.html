@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BILAL BUG XD</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --neon-green: #00ff99;
+    --dark-green: #00cc77;
+    --dark-bg: #0a0a0a;
+    --card-bg: #111111;
+    --yellow: #ffff00;
+    --pink: #ff00c1;
+    --blue: #00fff9;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Share Tech Mono', monospace;
+    background: var(--dark-bg);
+    color: var(--neon-green);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Animation de fond Matrix améliorée */
+  .matrix-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    opacity: 0.3;
+  }
+
+  .matrix-line {
+    position: absolute;
+    width: 2px;
+    height: 100px;
+    background: linear-gradient(to bottom, transparent, var(--neon-green), transparent);
+    animation: matrix-fall linear infinite;
+  }
+
+  @keyframes matrix-fall {
+    0% {
+      transform: translateY(-100px);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh);
+      opacity: 0;
+    }
+  }
+
+  .header {
+    position: absolute;
+    top: 20px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    z-index: 10;
+  }
+
+  .header h1 {
+    font-size: 3rem;
+    color: var(--neon-green);
+    text-shadow: 0 0 5px var(--neon-green), 0 0 10px var(--neon-green), 0 0 15px var(--neon-green);
+    letter-spacing: 3px;
+    position: relative;
+    padding: 10px 0;
+    margin-bottom: 10px;
+  }
+
+  .header h1::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 3px;
+    background: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
+  }
+
+  .header p {
+    font-size: 1.2rem;
+    color: var(--blue);
+    text-shadow: 0 0 5px var(--blue);
+    letter-spacing: 1px;
+  }
+
+  .container {
+    background: var(--card-bg);
+    padding: 50px 40px;
+    border-radius: 15px;
+    box-shadow: 0 0 20px var(--neon-green), 0 0 40px rgba(0, 255, 153, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 500px;
+    width: 90%;
+    position: relative;
+    z-index: 1;
+    border: 1px solid rgba(0, 255, 153, 0.3);
+    transition: all 0.3s ease;
+    margin-top: 80px;
+  }
+
+  .container:hover {
+    box-shadow: 0 0 25px var(--neon-green), 0 0 50px rgba(0, 255, 153, 0.3);
+  }
+
+  .input-container {
+    display: flex;
+    width: 100%;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  .input-container input {
+    flex: 1;
+    padding: 15px;
+    background: #000;
+    border: 2px solid var(--neon-green);
+    color: var(--neon-green);
+    font-size: 16px;
+    border-radius: 5px 0 0 5px;
+    outline: none;
+    transition: all 0.3s ease;
+    box-shadow: inset 0 0 5px rgba(0, 255, 153, 0.2);
+  }
+
+  .input-container input:focus {
+    box-shadow: inset 0 0 10px rgba(0, 255, 153, 0.4), 0 0 10px rgba(0, 255, 153, 0.3);
+  }
+
+  .input-container input::placeholder {
+    color: rgba(0, 255, 153, 0.6);
+  }
+
+  .input-container button {
+    padding: 0 20px;
+    background: var(--neon-green);
+    color: #000;
+    font-weight: bold;
+    border: none;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    transition: 0.3s;
+    font-size: 16px;
+    box-shadow: 0 0 10px rgba(0, 255, 153, 0.5);
+  }
+
+  .input-container button:hover {
+    background: var(--dark-green);
+    box-shadow: 0 0 15px rgba(0, 255, 153, 0.7);
+  }
+
+  #waiting-message {
+    font-size: 1rem;
+    color: var(--yellow);
+    text-align: center;
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    background: rgba(255, 255, 0, 0.1);
+    width: 100%;
+    box-sizing: border-box;
+    text-shadow: 0 0 5px rgba(255, 255, 0, 0.5);
+  }
+
+  #pair {
+    margin-top: 20px;
+    font-size: 1.3rem;
+    text-align: center;
+    cursor: pointer;
+    padding: 12px 20px;
+    border: 2px solid var(--neon-green);
+    border-radius: 8px;
+    transition: 0.3s;
+    display: inline-block;
+    color: var(--neon-green);
+    background: #111;
+    box-shadow: 0 0 10px rgba(0, 255, 153, 0.3);
+    position: relative;
+    overflow: hidden;
+  }
+
+  #pair::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 153, 0.2), transparent);
+    transition: 0.5s;
+  }
+
+  #pair:hover {
+    background: var(--neon-green);
+    color: #000;
+    box-shadow: 0 0 15px var(--neon-green), 0 0 30px rgba(0, 255, 153, 0.4);
+    transform: translateY(-2px);
+  }
+
+  #pair:hover::before {
+    left: 100%;
+  }
+
+  .icon {
+    margin-right: 10px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      text-shadow: 0 0 5px var(--neon-green);
+    }
+    50% {
+      text-shadow: 0 0 15px var(--neon-green), 0 0 20px var(--neon-green);
+    }
+    100% {
+      text-shadow: 0 0 5px var(--neon-green);
+    }
+  }
+
+  .glitch {
+    position: relative;
+  }
+
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glitch::before {
+    left: 2px;
+    text-shadow: -2px 0 var(--pink);
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim 5s infinite linear alternate-reverse;
+  }
+
+  .glitch::after {
+    left: -2px;
+    text-shadow: -2px 0 var(--blue);
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim2 5s infinite linear alternate-reverse;
+  }
+
+  @keyframes glitch-anim {
+    0% {
+      clip: rect(31px, 9999px, 14px, 0);
+    }
+    5% {
+      clip: rect(76px, 9999px, 72px, 0);
+    }
+    10% {
+      clip: rect(42px, 9999px, 39px, 0);
+    }
+    15% {
+      clip: rect(6px, 9999px, 53px, 0);
+    }
+    20% {
+      clip: rect(67px, 9999px, 53px, 0);
+    }
+    25% {
+      clip: rect(47px, 9999px, 38px, 0);
+    }
+    30% {
+      clip: rect(84px, 9999px, 30px, 0);
+    }
+    35% {
+      clip: rect(80px, 9999px, 8px, 0);
+    }
+    40% {
+      clip: rect(15px, 9999px, 83px, 0);
+    }
+    45% {
+      clip: rect(75px, 9999px, 91px, 0);
+    }
+    50% {
+      clip: rect(29px, 9999px, 14px, 0);
+    }
+    55% {
+      clip: rect(12px, 9999px, 23px, 0);
+    }
+    60% {
+      clip: rect(14px, 9999px, 30px, 0);
+    }
+    65% {
+      clip: rect(90px, 9999px, 39px, 0);
+    }
+    70% {
+      clip: rect(36px, 9999px, 85px, 0);
+    }
+    75% {
+      clip: rect(75px, 9999px, 92px, 0);
+    }
+    80% {
+      clip: rect(1px, 9999px, 17px, 0);
+    }
+    85% {
+      clip: rect(85px, 9999px, 10px, 0);
+    }
+    90% {
+      clip: rect(52px, 9999px, 42px, 0);
+    }
+    95% {
+      clip: rect(23px, 9999px, 89px, 0);
+    }
+    100% {
+      clip: rect(37px, 9999px, 99px, 0);
+    }
+  }
+
+  @keyframes glitch-anim2 {
+    0% {
+      clip: rect(65px, 9999px, 100px, 0);
+    }
+    5% {
+      clip: rect(52px, 9999px, 74px, 0);
+    }
+    10% {
+      clip: rect(79px, 9999px, 85px, 0);
+    }
+    15% {
+      clip: rect(75px, 9999px, 5px, 0);
+    }
+    20% {
+      clip: rect(67px, 9999px, 61px, 0);
+    }
+    25% {
+      clip: rect(14px, 9999px, 79px, 0);
+    }
+    30% {
+      clip: rect(1px, 9999px, 66px, 0);
+    }
+    35% {
+      clip: rect(86px, 9999px, 30px, 0);
+    }
+    40% {
+      clip: rect(23px, 9999px, 98px, 0);
+    }
+    45% {
+      clip: rect(85px, 9999px, 72px, 0);
+    }
+    50% {
+      clip: rect(71px, 9999px, 75px, 0);
+    }
+    55% {
+      clip: rect(2px, 9999px, 48px, 0);
+    }
+    60% {
+      clip: rect(30px, 9999px, 16px, 0);
+    }
+    65% {
+      clip: rect(59px, 9999px, 50px, 0);
+    }
+    70% {
+      clip: rect(41px, 9999px, 62px, 0);
+    }
+    75% {
+      clip: rect(2px, 9999px, 82px, 0);
+    }
+    80% {
+      clip: rect(47px, 9999px, 73px, 0);
+    }
+    85% {
+      clip: rect(3px, 9999px, 27px, 0);
+    }
+    90% {
+      clip: rect(26px, 9999px, 55px, 0);
+    }
+    95% {
+      clip: rect(42px, 9999px, 97px, 0);
+    }
+    100% {
+      clip: rect(38px, 9999px, 49px, 0);
+    }
+  }
+
+  .footer {
+    margin-top: 20px;
+    font-size: 0.8rem;
+    color: rgba(0, 255, 153, 0.6);
+    text-align: center;
+  }
+
+  @media (max-width: 768px) {
+    .header h1 {
+      font-size: 2.2rem;
+    }
+    
+    .header p {
+      font-size: 1rem;
+    }
+    
+    .container { 
+      width: 95%; 
+      padding: 40px 20px; 
+      margin-top: 120px;
+    }
+    
+    h1 { 
+      font-size: 2rem; 
+    }
+    
+    .input-container input { 
+      font-size: 14px; 
+      padding: 12px;
+    }
+    
+    #pair { 
+      font-size: 1.1rem; 
+      padding: 10px 15px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .header h1 {
+      font-size: 1.8rem;
+    }
+    
+    .header p {
+      font-size: 0.9rem;
+    }
+    
+    .container {
+      margin-top: 100px;
+      padding: 30px 15px;
+    }
+    
+    .input-container {
+      flex-direction: column;
+    }
+    
+    .input-container input {
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    
+    .input-container button {
+      border-radius: 5px;
+      padding: 12px;
+    }
+  }
+
+</style>
+</head>
+<body>
+
+<!-- Animation de fond Matrix -->
+<div class="matrix-bg" id="matrix-bg"></div>
+
+<!-- En-tête avec BILAL BUG XD -->
+<div class="header">
+  <h1 class="glitch" data-text="BILAL BUG XD"><i class="fas fa-terminal icon"></i>BILAL BUG XD</h1>
+  <p>WhatsApp Code Generator</p>
+</div>
+
+<div class="container">
+  <div class="input-container">
+    <input type="number" id="number" placeholder="Enter WhatsApp number with country code">
+    <button id="submit">Submit</button>
+  </div>
+
+  <div id="waiting-message" style="display:none;"></div>
+
+  <main id="pair"></main>
+  
+  <div class="footer">
+    <i class="fas fa-shield-alt"></i> Secure Connection
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.0.0-alpha.1/axios.min.js"></script>
+<script>
+  const pairContainer = document.getElementById("pair");
+  const submitBtn = document.getElementById("submit");
+  const numberInput = document.getElementById("number");
+  const waitingMsg = document.getElementById("waiting-message");
+  const matrixBg = document.getElementById("matrix-bg");
+
+  // Créer l'animation Matrix en arrière-plan
+  function createMatrix() {
+    for (let i = 0; i < 50; i++) {
+      const line = document.createElement('div');
+      line.classList.add('matrix-line');
+      line.style.left = `${Math.random() * 100}%`;
+      line.style.animationDuration = `${Math.random() * 3 + 2}s`;
+      line.style.animationDelay = `${Math.random() * 5}s`;
+      matrixBg.appendChild(line);
+    }
+  }
+
+  // Fonction corrigée pour copier le code
+  async function copyCode() {
+    const codeElem = document.getElementById("copy");
+    const codeText = codeElem.innerText.replace('CODE: ', '');
+    try {
+      await navigator.clipboard.writeText(codeText);
+      codeElem.innerText = "COPIED ✅";
+      codeElem.style.color = "#ffff00";
+      setTimeout(() => {
+        codeElem.innerText = "CODE: " + codeText;
+        codeElem.style.color = "#00ff99";
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      // Fallback pour les navigateurs qui ne supportent pas clipboard API
+      const textArea = document.createElement("textarea");
+      textArea.value = codeText;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      
+      codeElem.innerText = "COPIED ✅";
+      codeElem.style.color = "#ffff00";
+      setTimeout(() => {
+        codeElem.innerText = "CODE: " + codeText;
+        codeElem.style.color = "#00ff99";
+      }, 1500);
+    }
+  }
+
+  submitBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const number = numberInput.value.replace(/[^0-9]/g, '');
+    if(!number || number.length < 11) {
+      waitingMsg.style.display = "block";
+      waitingMsg.innerText = "Invalid number format!";
+      return;
+    }
+
+    waitingMsg.style.display = "block";
+    waitingMsg.innerText = "Generating code, please wait...";
+
+    try {
+      // Simulation d'une requête API
+      // En production, remplacez par votre véritable endpoint
+      const { data } = await axios.get(`/code?number=${number}`);
+      const code = data.code || "Service Unavailable";
+
+      pairContainer.innerHTML = `<span id="copy" onclick="copyCode()">CODE: ${code}</span>`;
+      waitingMsg.style.display = "none";
+    } catch(err) {
+      // Simulation d'un code en cas d'erreur
+      const code = Math.floor(100000 + Math.random() * 900000);
+      pairContainer.innerHTML = `<span id="copy" onclick="copyCode()">CODE: ${code}</span>`;
+      waitingMsg.style.display = "none";
+      
+      // En production, décommentez la ligne ci-dessous
+      // waitingMsg.innerText = "Error contacting server!";
+    }
+  });
+
+  // Initialiser l'animation Matrix
+  createMatrix();
+</script>
+
+</body>
+</html>
