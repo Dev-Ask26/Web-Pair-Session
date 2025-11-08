@@ -124,7 +124,7 @@ devaskNotBot.ev.on("messages.upsert", async chatUpdate => {
 devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
 devaskNotBot.newsletterFollow("120363401251267400@newsletter");
             devaskNotBot.sendMessage(devaskNotBot.user.id, {
-                image: { url: 'welcome.png' },
+                image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
                 caption: `
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
 █░░╦─╦╔╗╦─╔╗╔╗╔╦╗╔╗░░█
