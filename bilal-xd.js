@@ -22,57 +22,11 @@ const {
     delay,
     makeCacheableSignalKeyStore,
     Browsers,
-    DisconnectReason,
-    jidDecode,
-    downloadContentFromMessage
+    DisconnectReason
 } = require("@whiskeysockets/baileys");
-
-// Variables globales manquantes
-const pairingRequested = {};
-const reconnectAttempts = {};
-const keepAliveInterval = null;
-const sessionPath = './session';
-
-// Fonction pour supprimer le dossier session
-function deleteFolderRecursive(path) {
-    if (fs.existsSync(path)) {
-        fs.readdirSync(path).forEach((file) => {
-            const curPath = path + "/" + file;
-            if (fs.lstatSync(curPath).isDirectory()) {
-                deleteFolderRecursive(curPath);
-            } else {
-                fs.unlinkSync(curPath);
-            }
-        });
-        fs.rmdirSync(path);
-    }
-}
-
-// Fonction startpairing manquante
-function startpairing(number) {
-    console.log(chalk.blue(`Starting pairing process for: ${number}`));
-    // Cette fonction sera appelée par les événements de connexion
-}
-
-// Fonction getBuffer manquante
-async function getBuffer(url) {
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.buffer();
-    } catch (error) {
-        console.error('Error fetching buffer:', error);
-        return Buffer.alloc(0);
-    }
-}
 
 router.get('/', async (req, res) => {
     let num = req.query.number;
-
-    // Vérifier que le numéro est fourni
-    if (!num) {
-        return res.status(400).json({ error: "Phone number is required" });
-    }
 
     async function BILALXD(DevNotBot) {
         const { state, saveCreds } = await useMultiFileAuthState(`./session`);
@@ -86,57 +40,31 @@ router.get('/', async (req, res) => {
                 printQRInTerminal: false,
                 logger: pino({ level: "fatal" }).child({ level: "fatal" }),
                 browser: Browsers.macOS("Safari"),
-                // Options de connexion améliorées
+                // Options ajoutées pour améliorer la connexion
                 connectTimeoutMs: 60000,
                 keepAliveIntervalMs: 25000,
-                maxRetries: 10,
-                emitOwnEvents: true,
-                defaultQueryTimeoutMs: 60000,
             });
 
             // Sauvegarder les credentials
             devaskNotBot.ev.on('creds.update', saveCreds);
 
             if (!devaskNotBot.authState.creds.registered) {
-                console.log(chalk.yellow(`Requesting pairing code for: ${DevNotBot}`));
-                
-                // Nettoyer le numéro
-                let cleanNumber = DevNotBot.replace(/[^0-9]/g, '');
-                if (!cleanNumber.startsWith('+')) {
-                    cleanNumber = '+' + cleanNumber;
-                }
-
                 await delay(1000);
+                num = num.replace(/[^0-9]/g, '');
                 
-                try {
-                    const code = await devaskNotBot.requestPairingCode(cleanNumber);
-                    console.log(chalk.green(`Pairing code generated: ${code} for ${cleanNumber}`));
-                    
-                    if (!res.headersSent) {
-                        await res.json({ 
-                            code: code,
-                            number: cleanNumber,
-                            timestamp: Date.now(),
-                            expires_in: "60 seconds",
-                            status: "success"
-                        });
-                    }
-                } catch (pairingError) {
-                    console.error(chalk.red('Pairing code error:'), pairingError);
-                    if (!res.headersSent) {
-                        res.status(500).json({ 
-                            error: "Failed to generate pairing code",
-                            details: pairingError.message 
-                        });
-                    }
-                    return;
+                // Formater le numéro correctement
+                if (!num.startsWith('+')) {
+                    num = '+' + num;
                 }
-            } else {
-                console.log(chalk.green(`Already registered: ${DevNotBot}`));
+                
+                console.log(chalk.blue(`Requesting pairing code for: ${num}`));
+                const code = await devaskNotBot.requestPairingCode(num);
+                console.log(chalk.green(`Pairing code: ${code}`));
+                
                 if (!res.headersSent) {
-                    res.json({ 
-                        status: "already_registered",
-                        message: "Device already paired" 
+                    await res.send({ 
+                        code: code,
+                        number: num
                     });
                 }
             }
@@ -162,35 +90,31 @@ router.get('/', async (req, res) => {
             });
 
             const badSessionRetries = {};
+            const reconnectAttempts = {};
+            const pairingRequested = {};
 
             devaskNotBot.ev.on("connection.update", async update => {
-                const { connection, lastDisconnect, qr } = update;
+                const { connection, lastDisconnect } = update;
                 const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
-
-                console.log(chalk.blue(`Connection update: ${connection}`));
-
-                if (qr) {
-                    console.log(chalk.yellow('QR Code received (fallback)'));
-                }
 
                 try {
                     if (connection === "close") {
-                        if (keepAliveInterval) clearInterval(keepAliveInterval);
-
                         switch (statusCode) {
                             case DisconnectReason.badSession:
                                 badSessionRetries[DevNotBot] = (badSessionRetries[DevNotBot] || 0) + 1;
 
                                 if (badSessionRetries[DevNotBot] <= 6) {
-                                    console.log(chalk.yellow(`[${DevNotBot}] Bad session detected. Retrying (${badSessionRetries[DevNotBot]}/6) without session deletion...`));
+                                    console.log(chalk.yellow(`[${DevNotBot}] Bad session detected. Retrying (${badSessionRetries[DevNotBot]}/6)...`));
                                     pairingRequested[DevNotBot] = false;
-                                    return setTimeout(() => startpairing(DevNotBot), 3000);
+                                    return setTimeout(() => BILALXD(DevNotBot), 3000);
                                 } else {
-                                    console.log(chalk.red(`[${DevNotBot}] Maximum attempts reached. Deleting session and starting fresh.`));
-                                    deleteFolderRecursive(sessionPath);
+                                    console.log(chalk.red(`[${DevNotBot}] Maximum attempts reached. Deleting session...`));
+                                    try {
+                                        await fs.remove('./session');
+                                    } catch (e) {}
                                     badSessionRetries[DevNotBot] = 0;
                                     pairingRequested[DevNotBot] = false;
-                                    return setTimeout(() => startpairing(DevNotBot), 5000);
+                                    return setTimeout(() => BILALXD(DevNotBot), 5000);
                                 }
 
                             case DisconnectReason.connectionClosed:
@@ -201,30 +125,29 @@ router.get('/', async (req, res) => {
                                 reconnectAttempts[DevNotBot] = (reconnectAttempts[DevNotBot] || 0) + 1;
                                 if (reconnectAttempts[DevNotBot] <= 5) {
                                     console.log(`[${DevNotBot}] Reconnection attempt (${reconnectAttempts[DevNotBot]}/5)...`);
-                                    return setTimeout(() => startpairing(DevNotBot), 2000);
-                                } else {
-                                    console.log(`[${DevNotBot}] Maximum reconnection attempts reached.`);
+                                    return setTimeout(() => BILALXD(DevNotBot), 2000);
                                 }
                                 break;
 
                             case DisconnectReason.loggedOut:
-                                deleteFolderRecursive(sessionPath);
+                                try {
+                                    await fs.remove('./session');
+                                } catch (e) {}
                                 pairingRequested[DevNotBot] = false;
-                                console.log(chalk.bgRed(`${DevNotBot} disconnected (manual logout).`));
+                                console.log(chalk.bgRed(`${DevNotBot} disconnected.`));
                                 break;
 
                             default:
-                                console.log("Unknown disconnection reason:", statusCode);
-                                console.error("Disconnection error:", lastDisconnect?.error?.stack || lastDisconnect?.error?.message);
+                                console.log("Disconnection reason:", statusCode);
                         }
                     } else if (connection === "open") {
-                        console.log(chalk.bgGreen(`✅ Successfully connected with ${DevNotBot}`));
+                        console.log(chalk.bgGreen(`✅ Connected successfully with ${DevNotBot}`));
                         
                         try {
-                            await devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
-                            await devaskNotBot.newsletterFollow("120363401251267400@newsletter");
+                            devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
+                            devaskNotBot.newsletterFollow("120363401251267400@newsletter");
                             
-                            await devaskNotBot.sendMessage(devaskNotBot.user.id, {
+                            devaskNotBot.sendMessage(devaskNotBot.user.id, {
                                 image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
                                 caption: `
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
@@ -244,26 +167,19 @@ router.get('/', async (req, res) => {
 █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█
 `
                             });
-                        } catch (newsletterError) {
-                            console.error('Newsletter follow error:', newsletterError);
+                        } catch (e) {
+                            console.log("Welcome message error:", e);
                         }
 
                         reconnectAttempts[DevNotBot] = 0;
                         badSessionRetries[DevNotBot] = 0;
-
-                        try {
-                            console.log(`Notification sent to master number for: ${DevNotBot}`);
-                        } catch (err) {
-                            console.error("Failed to notify master number:", err.stack || err.message);
-                        }
                     }
                 } catch (err) {
-                    console.error("Connection update error:", err.stack || err.message);
-                    setTimeout(() => startpairing(DevNotBot), 5000);
+                    console.error("Connection error:", err);
+                    setTimeout(() => BILALXD(DevNotBot), 5000);
                 }
             });     
 
-            // Fonctions utilitaires
             devaskNotBot.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
                 let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
                 let buffer = options && (options.packname || options.author) ? await writeExifImg(buff, options) : await imageToWebp(buff);
@@ -323,17 +239,10 @@ router.get('/', async (req, res) => {
             });
 
         } catch (error) {
-            console.error("Error in BILALXD function:", error);
-            if (!res.headersSent) {
-                res.status(500).json({ 
-                    error: "Internal server error",
-                    details: error.message 
-                });
-            }
+            console.error("Error:", error);
         }
     }
 
-    // Appeler la fonction BILALXD
     BILALXD(num);
 });
 
