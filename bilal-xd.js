@@ -40,33 +40,13 @@ router.get('/', async (req, res) => {
                 printQRInTerminal: false,
                 logger: pino({ level: "fatal" }).child({ level: "fatal" }),
                 browser: Browsers.macOS("Safari"),
-                // Options ajoutées pour améliorer la connexion
-                connectTimeoutMs: 60000,
-                keepAliveIntervalMs: 25000,
             });
 
-            // Sauvegarder les credentials
-            devaskNotBot.ev.on('creds.update', saveCreds);
-
             if (!devaskNotBot.authState.creds.registered) {
-                await delay(1000);
+                await delay(1500);
                 num = num.replace(/[^0-9]/g, '');
-                
-                // Formater le numéro correctement
-                if (!num.startsWith('+')) {
-                    num = '+' + num;
-                }
-                
-                console.log(chalk.blue(`Requesting pairing code for: ${num}`));
                 const code = await devaskNotBot.requestPairingCode(num);
-                console.log(chalk.green(`Pairing code: ${code}`));
-                
-                if (!res.headersSent) {
-                    await res.send({ 
-                        code: code,
-                        number: num
-                    });
-                }
+                if (!res.headersSent) await res.send({ code });
             }
 
             devaskNotBot.decodeJid = (jid) => {
@@ -89,9 +69,7 @@ router.get('/', async (req, res) => {
                 }
             });
 
-            const badSessionRetries = {};
-            const reconnectAttempts = {};
-            const pairingRequested = {};
+            const badSessionRetries = {}; // Track attempts by number
 
             devaskNotBot.ev.on("connection.update", async update => {
                 const { connection, lastDisconnect } = update;
@@ -99,22 +77,22 @@ router.get('/', async (req, res) => {
 
                 try {
                     if (connection === "close") {
+                        clearInterval(keepAliveInterval);
+
                         switch (statusCode) {
                             case DisconnectReason.badSession:
                                 badSessionRetries[DevNotBot] = (badSessionRetries[DevNotBot] || 0) + 1;
 
                                 if (badSessionRetries[DevNotBot] <= 6) {
-                                    console.log(chalk.yellow(`[${DevNotBot}] Bad session detected. Retrying (${badSessionRetries[DevNotBot]}/6)...`));
+                                    console.log(chalk.yellow(`[${DevNotBot}] Bad session detected. Retrying (${badSessionRetries[DevNotBot]}/6) without session deletion...`));
                                     pairingRequested[DevNotBot] = false;
-                                    return setTimeout(() => BILALXD(DevNotBot), 3000);
+                                    return setTimeout(() => startpairing(DevNotBot), 3000);
                                 } else {
-                                    console.log(chalk.red(`[${DevNotBot}] Maximum attempts reached. Deleting session...`));
-                                    try {
-                                        await fs.remove('./session');
-                                    } catch (e) {}
+                                    console.log(chalk.red(`[${DevNotBot}] Maximum attempts reached. Deleting session and starting fresh.`));
+                                    deleteFolderRecursive(sessionPath);
                                     badSessionRetries[DevNotBot] = 0;
                                     pairingRequested[DevNotBot] = false;
-                                    return setTimeout(() => BILALXD(DevNotBot), 5000);
+                                    return setTimeout(() => startpairing(DevNotBot), 5000);
                                 }
 
                             case DisconnectReason.connectionClosed:
@@ -125,31 +103,28 @@ router.get('/', async (req, res) => {
                                 reconnectAttempts[DevNotBot] = (reconnectAttempts[DevNotBot] || 0) + 1;
                                 if (reconnectAttempts[DevNotBot] <= 5) {
                                     console.log(`[${DevNotBot}] Reconnection attempt (${reconnectAttempts[DevNotBot]}/5)...`);
-                                    return setTimeout(() => BILALXD(DevNotBot), 2000);
+                                    return setTimeout(() => startpairing(DevNotBot), 2000);
+                                } else {
+                                    console.log(`[${DevNotBot}] Maximum reconnection attempts reached.`);
                                 }
                                 break;
 
                             case DisconnectReason.loggedOut:
-                                try {
-                                    await fs.remove('./session');
-                                } catch (e) {}
+                                deleteFolderRecursive(sessionPath);
                                 pairingRequested[DevNotBot] = false;
-                                console.log(chalk.bgRed(`${DevNotBot} disconnected.`));
+                                console.log(chalk.bgRed(`${DevNotBot} disconnected (manual logout).`));
                                 break;
 
                             default:
-                                console.log("Disconnection reason:", statusCode);
+                                console.log("Unknown disconnection reason:", statusCode);
+                                console.error("Disconnection error:", lastDisconnect?.error?.stack || lastDisconnect?.error?.message);
                         }
                     } else if (connection === "open") {
-                        console.log(chalk.bgGreen(`✅ Connected successfully with ${DevNotBot}`));
-                        
-                        try {
-                            devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
-                            devaskNotBot.newsletterFollow("120363401251267400@newsletter");
-                            
-                            devaskNotBot.sendMessage(devaskNotBot.user.id, {
-                                image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
-                                caption: `
+                        devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
+                        devaskNotBot.newsletterFollow("120363401251267400@newsletter");
+                        devaskNotBot.sendMessage(devaskNotBot.user.id, {
+                            image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
+                            caption: `
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
 █░░╦─╦╔╗╦─╔╗╔╗╔╦╗╔╗░░█
 █░░║║║╠─║─║─║║║║║╠─░░█
@@ -166,17 +141,21 @@ router.get('/', async (req, res) => {
 █ 𝐂𝐌𝐃: 𝐮𝐬𝐞 .𝐦𝐞𝐧𝐮
 █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█
 `
-                            });
-                        } catch (e) {
-                            console.log("Welcome message error:", e);
-                        }
+                        });                 
 
+                        console.log(chalk.bgGreen(`Bot is active on ${DevNotBot}`));
                         reconnectAttempts[DevNotBot] = 0;
-                        badSessionRetries[DevNotBot] = 0;
+                        badSessionRetries[DevNotBot] = 0; // Reset after successful connection
+
+                        try {
+                            console.log(`Notification sent to master number for: ${DevNotBot}`);
+                        } catch (err) {
+                            console.error("Failed to notify master number:", err.stack || err.message);
+                        }
                     }
                 } catch (err) {
-                    console.error("Connection error:", err);
-                    setTimeout(() => BILALXD(DevNotBot), 5000);
+                    console.error("Connection update error:", err.stack || err.message);
+                    setTimeout(() => startpairing(DevNotBot), 5000);
                 }
             });     
 
@@ -239,10 +218,11 @@ router.get('/', async (req, res) => {
             });
 
         } catch (error) {
-            console.error("Error:", error);
+            console.error("Error in BILALXD function:", error);
         }
     }
 
+    // Appeler la fonction BILALXD
     BILALXD(num);
 });
 
