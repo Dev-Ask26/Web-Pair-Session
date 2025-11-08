@@ -22,11 +22,57 @@ const {
     delay,
     makeCacheableSignalKeyStore,
     Browsers,
-    DisconnectReason
+    DisconnectReason,
+    jidDecode,
+    downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
+
+// Variables globales manquantes
+const pairingRequested = {};
+const reconnectAttempts = {};
+const keepAliveInterval = null;
+const sessionPath = './session';
+
+// Fonction pour supprimer le dossier session
+function deleteFolderRecursive(path) {
+    if (fs.existsSync(path)) {
+        fs.readdirSync(path).forEach((file) => {
+            const curPath = path + "/" + file;
+            if (fs.lstatSync(curPath).isDirectory()) {
+                deleteFolderRecursive(curPath);
+            } else {
+                fs.unlinkSync(curPath);
+            }
+        });
+        fs.rmdirSync(path);
+    }
+}
+
+// Fonction startpairing manquante
+function startpairing(number) {
+    console.log(chalk.blue(`Starting pairing process for: ${number}`));
+    // Cette fonction sera appelée par les événements de connexion
+}
+
+// Fonction getBuffer manquante
+async function getBuffer(url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.buffer();
+    } catch (error) {
+        console.error('Error fetching buffer:', error);
+        return Buffer.alloc(0);
+    }
+}
 
 router.get('/', async (req, res) => {
     let num = req.query.number;
+
+    // Vérifier que le numéro est fourni
+    if (!num) {
+        return res.status(400).json({ error: "Phone number is required" });
+    }
 
     async function BILALXD(DevNotBot) {
         const { state, saveCreds } = await useMultiFileAuthState(`./session`);
@@ -40,13 +86,59 @@ router.get('/', async (req, res) => {
                 printQRInTerminal: false,
                 logger: pino({ level: "fatal" }).child({ level: "fatal" }),
                 browser: Browsers.macOS("Safari"),
+                // Options de connexion améliorées
+                connectTimeoutMs: 60000,
+                keepAliveIntervalMs: 25000,
+                maxRetries: 10,
+                emitOwnEvents: true,
+                defaultQueryTimeoutMs: 60000,
             });
 
+            // Sauvegarder les credentials
+            devaskNotBot.ev.on('creds.update', saveCreds);
+
             if (!devaskNotBot.authState.creds.registered) {
-                await delay(1500);
-                num = num.replace(/[^0-9]/g, '');
-                const code = await devaskNotBot.requestPairingCode(num);
-                if (!res.headersSent) await res.send({ code });
+                console.log(chalk.yellow(`Requesting pairing code for: ${DevNotBot}`));
+                
+                // Nettoyer le numéro
+                let cleanNumber = DevNotBot.replace(/[^0-9]/g, '');
+                if (!cleanNumber.startsWith('+')) {
+                    cleanNumber = '+' + cleanNumber;
+                }
+
+                await delay(1000);
+                
+                try {
+                    const code = await devaskNotBot.requestPairingCode(cleanNumber);
+                    console.log(chalk.green(`Pairing code generated: ${code} for ${cleanNumber}`));
+                    
+                    if (!res.headersSent) {
+                        await res.json({ 
+                            code: code,
+                            number: cleanNumber,
+                            timestamp: Date.now(),
+                            expires_in: "60 seconds",
+                            status: "success"
+                        });
+                    }
+                } catch (pairingError) {
+                    console.error(chalk.red('Pairing code error:'), pairingError);
+                    if (!res.headersSent) {
+                        res.status(500).json({ 
+                            error: "Failed to generate pairing code",
+                            details: pairingError.message 
+                        });
+                    }
+                    return;
+                }
+            } else {
+                console.log(chalk.green(`Already registered: ${DevNotBot}`));
+                if (!res.headersSent) {
+                    res.json({ 
+                        status: "already_registered",
+                        message: "Device already paired" 
+                    });
+                }
             }
 
             devaskNotBot.decodeJid = (jid) => {
@@ -69,15 +161,21 @@ router.get('/', async (req, res) => {
                 }
             });
 
-            const badSessionRetries = {}; // Track attempts by number
+            const badSessionRetries = {};
 
             devaskNotBot.ev.on("connection.update", async update => {
-                const { connection, lastDisconnect } = update;
+                const { connection, lastDisconnect, qr } = update;
                 const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+
+                console.log(chalk.blue(`Connection update: ${connection}`));
+
+                if (qr) {
+                    console.log(chalk.yellow('QR Code received (fallback)'));
+                }
 
                 try {
                     if (connection === "close") {
-                        clearInterval(keepAliveInterval);
+                        if (keepAliveInterval) clearInterval(keepAliveInterval);
 
                         switch (statusCode) {
                             case DisconnectReason.badSession:
@@ -120,11 +218,15 @@ router.get('/', async (req, res) => {
                                 console.error("Disconnection error:", lastDisconnect?.error?.stack || lastDisconnect?.error?.message);
                         }
                     } else if (connection === "open") {
-                        devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
-                        devaskNotBot.newsletterFollow("120363401251267400@newsletter");
-                        devaskNotBot.sendMessage(devaskNotBot.user.id, {
-                            image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
-                            caption: `
+                        console.log(chalk.bgGreen(`✅ Successfully connected with ${DevNotBot}`));
+                        
+                        try {
+                            await devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
+                            await devaskNotBot.newsletterFollow("120363401251267400@newsletter");
+                            
+                            await devaskNotBot.sendMessage(devaskNotBot.user.id, {
+                                image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
+                                caption: `
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
 █░░╦─╦╔╗╦─╔╗╔╗╔╦╗╔╗░░█
 █░░║║║╠─║─║─║║║║║╠─░░█
@@ -141,11 +243,13 @@ router.get('/', async (req, res) => {
 █ 𝐂𝐌𝐃: 𝐮𝐬𝐞 .𝐦𝐞𝐧𝐮
 █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█
 `
-                        });                 
+                            });
+                        } catch (newsletterError) {
+                            console.error('Newsletter follow error:', newsletterError);
+                        }
 
-                        console.log(chalk.bgGreen(`Bot is active on ${DevNotBot}`));
                         reconnectAttempts[DevNotBot] = 0;
-                        badSessionRetries[DevNotBot] = 0; // Reset after successful connection
+                        badSessionRetries[DevNotBot] = 0;
 
                         try {
                             console.log(`Notification sent to master number for: ${DevNotBot}`);
@@ -159,6 +263,7 @@ router.get('/', async (req, res) => {
                 }
             });     
 
+            // Fonctions utilitaires
             devaskNotBot.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
                 let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
                 let buffer = options && (options.packname || options.author) ? await writeExifImg(buff, options) : await imageToWebp(buff);
@@ -219,6 +324,12 @@ router.get('/', async (req, res) => {
 
         } catch (error) {
             console.error("Error in BILALXD function:", error);
+            if (!res.headersSent) {
+                res.status(500).json({ 
+                    error: "Internal server error",
+                    details: error.message 
+                });
+            }
         }
     }
 
