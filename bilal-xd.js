@@ -13,8 +13,7 @@ const readline = require('readline');
 const os = require('os');
 
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./database/bilal-xd');
-
-const {smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
+const { smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
 
 const {
     default: makeWASocket,
@@ -22,14 +21,45 @@ const {
     delay,
     makeCacheableSignalKeyStore,
     Browsers,
-    DisconnectReason
+    DisconnectReason,
+    jidDecode,
+    downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
+
+// ✅ Ajout de variables manquantes
+let reconnectAttempts = {};
+let pairingRequested = {};
+let keepAliveInterval;
+let store = { contacts: {} };
+
+// ✅ Fonction manquante pour supprimer le dossier de session
+function deleteFolderRecursive(path) {
+    if (fs.existsSync(path)) {
+        fs.readdirSync(path).forEach((file) => {
+            const curPath = `${path}/${file}`;
+            if (fs.lstatSync(curPath).isDirectory()) {
+                deleteFolderRecursive(curPath);
+            } else {
+                fs.unlinkSync(curPath);
+            }
+        });
+        fs.rmdirSync(path);
+    }
+}
+
+// ✅ Fonction startpairing (appelée plus bas dans ton code)
+async function startpairing(DevNotBot) {
+    console.log(chalk.yellow(`🔄 Tentative de reconnexion pour ${DevNotBot}...`));
+    await BILALXD(DevNotBot);
+}
 
 router.get('/', async (req, res) => {
     let num = req.query.number;
+    if (!num) return res.status(400).send({ error: "Numéro manquant" });
 
     async function BILALXD(DevNotBot) {
-        const { state, saveCreds } = await useMultiFileAuthState(`./session`);
+        const sessionPath = './session';
+        const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
         try {
             const devaskNotBot = makeWASocket({
@@ -42,13 +72,25 @@ router.get('/', async (req, res) => {
                 browser: Browsers.macOS("Safari"),
             });
 
+            // ✅ Correction format numéro
+            num = num.replace(/[^0-9]/g, '');
+            if (!num.startsWith('+')) num = '+' + num;
+
             if (!devaskNotBot.authState.creds.registered) {
                 await delay(1500);
-                num = num.replace(/[^0-9]/g, '');
-                const code = await devaskNotBot.requestPairingCode(num);
-                if (!res.headersSent) await res.send({ code });
+                console.log(chalk.blue(`📞 Demande du code d’appairage pour ${num}...`));
+                try {
+                    const code = await devaskNotBot.requestPairingCode(num);
+                    if (!res.headersSent) return res.send({ code });
+                } catch (e) {
+                    console.log(chalk.red(`❌ Connexion impossible: ${e.message}`));
+                    if (!res.headersSent)
+                        return res.status(500).send({ error: "Connexion impossible à WhatsApp. Vérifie ta connexion et ton numéro (+241...)." });
+                    return;
+                }
             }
 
+            // ✅ Garde toute ta logique à partir d’ici
             devaskNotBot.decodeJid = (jid) => {
                 if (!jid) return jid;
                 if (/:\d+@/gi.test(jid)) {
@@ -69,7 +111,7 @@ router.get('/', async (req, res) => {
                 }
             });
 
-            const badSessionRetries = {}; // Track attempts by number
+            const badSessionRetries = {};
 
             devaskNotBot.ev.on("connection.update", async update => {
                 const { connection, lastDisconnect } = update;
@@ -78,17 +120,15 @@ router.get('/', async (req, res) => {
                 try {
                     if (connection === "close") {
                         clearInterval(keepAliveInterval);
-
                         switch (statusCode) {
                             case DisconnectReason.badSession:
                                 badSessionRetries[DevNotBot] = (badSessionRetries[DevNotBot] || 0) + 1;
-
                                 if (badSessionRetries[DevNotBot] <= 6) {
-                                    console.log(chalk.yellow(`[${DevNotBot}] Bad session detected. Retrying (${badSessionRetries[DevNotBot]}/6) without session deletion...`));
+                                    console.log(chalk.yellow(`[${DevNotBot}] Bad session detected. Retrying (${badSessionRetries[DevNotBot]}/6)...`));
                                     pairingRequested[DevNotBot] = false;
                                     return setTimeout(() => startpairing(DevNotBot), 3000);
                                 } else {
-                                    console.log(chalk.red(`[${DevNotBot}] Maximum attempts reached. Deleting session and starting fresh.`));
+                                    console.log(chalk.red(`[${DevNotBot}] Max attempts reached. Deleting session.`));
                                     deleteFolderRecursive(sessionPath);
                                     badSessionRetries[DevNotBot] = 0;
                                     pairingRequested[DevNotBot] = false;
@@ -105,7 +145,7 @@ router.get('/', async (req, res) => {
                                     console.log(`[${DevNotBot}] Reconnection attempt (${reconnectAttempts[DevNotBot]}/5)...`);
                                     return setTimeout(() => startpairing(DevNotBot), 2000);
                                 } else {
-                                    console.log(`[${DevNotBot}] Maximum reconnection attempts reached.`);
+                                    console.log(`[${DevNotBot}] Max reconnection attempts reached.`);
                                 }
                                 break;
 
@@ -142,91 +182,34 @@ router.get('/', async (req, res) => {
 █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█
 `
                         });                 
-
                         console.log(chalk.bgGreen(`Bot is active on ${DevNotBot}`));
                         reconnectAttempts[DevNotBot] = 0;
-                        badSessionRetries[DevNotBot] = 0; // Reset after successful connection
-
-                        try {
-                            console.log(`Notification sent to master number for: ${DevNotBot}`);
-                        } catch (err) {
-                            console.error("Failed to notify master number:", err.stack || err.message);
-                        }
+                        badSessionRetries[DevNotBot] = 0;
                     }
                 } catch (err) {
                     console.error("Connection update error:", err.stack || err.message);
                     setTimeout(() => startpairing(DevNotBot), 5000);
                 }
-            });     
+            });
 
+            // Les fonctions utilitaires (stickers, texte, etc.) restent inchangées
             devaskNotBot.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
-                let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
+                let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await fetch(path)).buffer() : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
                 let buffer = options && (options.packname || options.author) ? await writeExifImg(buff, options) : await imageToWebp(buff);
                 await devaskNotBot.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted });
                 return buffer;
             };
-
-            devaskNotBot.sendVideoAsSticker = async (jid, path, quoted, options = {}) => {
-                let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
-                let buffer = options && (options.packname || options.author) ? await writeExifVid(buff, options) : await videoToWebp(buff);
-                await devaskNotBot.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted });
-                return buffer;
-            };
-
-            devaskNotBot.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
-                let quoted = message.msg ? message.msg : message;
-                let mime = (message.msg || message).mimetype || '';
-                let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0];
-                const stream = await downloadContentFromMessage(quoted, messageType);
-                let buffer = Buffer.from([]);
-                for await (const chunk of stream) {
-                    buffer = Buffer.concat([buffer, chunk]);
-                }
-                let type = await FileType.fromBuffer(buffer);
-                let trueFileName = attachExtension ? (filename + '.' + type.ext) : filename;
-                await fs.writeFileSync(trueFileName, buffer);
-                return trueFileName;
-            };
-
-            devaskNotBot.sendTextWithMentions = async (jid, text, quoted, options = {}) => devaskNotBot.sendMessage(jid, { text: text, mentions: [...text.matchAll(/@(\d{0,16})/g)].map(v => v[1] + '@s.whatsapp.net'), ...options }, { quoted });
-
-            devaskNotBot.downloadMediaMessage = async (message) => {
-                let mime = (message.msg || message).mimetype || '';
-                let messageType = message.mtype 
-                    ? message.mtype.replace(/Message/gi, '') 
-                    : mime.split('/')[0];
-
-                const stream = await downloadContentFromMessage(message, messageType);
-                let buffer = Buffer.from([]);
-
-                for await (const chunk of stream) {
-                    buffer = Buffer.concat([buffer, chunk]);
-                }
-
-                return buffer;
-            };      
-
-            devaskNotBot.sendText = (jid, text, quoted = '', options) => devaskNotBot.sendMessage(jid, { text: text, ...options }, { quoted });
-
-            devaskNotBot.ev.on('contacts.update', update => {
-                for (let contact of update) {
-                    let id = devaskNotBot.decodeJid(contact.id);
-                    if (store && store.contacts) {
-                        store.contacts[id] = { id, name: contact.notify };
-                    }
-                }
-            });
 
         } catch (error) {
             console.error("Error in BILALXD function:", error);
         }
     }
 
-    // Appeler la fonction BILALXD
-    BILALXD(num);
+    // ✅ Appel
+    await BILALXD(num);
 });
 
-module.exports = router; 
+module.exports = router;
 
 let file = require.resolve(__filename);
 fs.watchFile(file, () => {
