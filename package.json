@@ -1,5 +1,5 @@
 {
-  "name": "ask-xmd-telegram-bot",
+  "name": "bilal-bug-xd",
   "version": "1.0.0",
   "description": "Un bot Telegram simple cree par dev ask/messy pairing code baye ask base tech",
   "main": "index.js",
@@ -23,6 +23,7 @@
     "colors": "latest",
     "crypto": "^1.0.1",
     "dotenv": "^16.5.0",
+    "express": "^4.18.2",
     "fake-useragent": "^1.0.1",
     "file-type": "^16.5.3",
     "filesize": "^10.1.6",
