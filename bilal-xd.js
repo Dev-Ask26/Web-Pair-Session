@@ -14,7 +14,7 @@ const os = require('os');
 
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./database/bilal-xd');
 
-const {smsg, fetchJson, await: awaitfunc, sleep } = require('./database/myLib');
+const {smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
 
 const {
     default: makeWASocket,
