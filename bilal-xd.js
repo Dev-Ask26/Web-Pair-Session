@@ -1,9 +1,9 @@
 const express = require('express');
-require('./config');
 const fs = require('fs-extra');
 const { exec } = require("child_process");
 const router = express.Router();
 const pino = require("pino");
+require('./config')
 const { Boom } = require("@hapi/boom");
 const crypto = require('crypto');
 const chalk = require("chalk");
