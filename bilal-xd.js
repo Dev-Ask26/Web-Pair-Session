@@ -12,6 +12,7 @@ const moment = require('moment-timezone');
 const readline = require('readline');
 const os = require('os');
 
+require('./config')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./database/bilal-xd');
 
 const {smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
