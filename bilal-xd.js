@@ -11,8 +11,7 @@ const fetch = require('node-fetch');
 const moment = require('moment-timezone');
 const readline = require('readline');
 const os = require('os');
-
-const require('./config')
+require('./config')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./database/bilal-xd');
 
 const {smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
