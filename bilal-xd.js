@@ -11,8 +11,7 @@ const fetch = require('node-fetch');
 const moment = require('moment-timezone');
 const readline = require('readline');
 const os = require('os');
-
-require('./config');
+require('./config')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./database/bilal-xd');
 
 const {smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
@@ -23,8 +22,27 @@ const {
     delay,
     makeCacheableSignalKeyStore,
     Browsers,
-    DisconnectReason
+    DisconnectReason,
+    jidDecode,
+    downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
+
+// Fonction getBuffer manquante
+async function getBuffer(url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.buffer();
+    } catch (error) {
+        console.error('Error fetching buffer:', error);
+        return Buffer.alloc(0);
+    }
+}
+
+// Variables globales manquantes
+const store = {
+    contacts: {}
+};
 
 router.get('/', async (req, res) => {
     let num = req.query.number;
@@ -46,29 +64,28 @@ router.get('/', async (req, res) => {
                 printQRInTerminal: false,
                 logger: pino({ level: "fatal" }).child({ level: "fatal" }),
                 browser: Browsers.macOS("Safari"),
-                // Options critiques
-                connectTimeoutMs: 120000, // 2 minutes
-                keepAliveIntervalMs: 15000,
+                // Options améliorées pour la connexion
+                connectTimeoutMs: 120000,
+                keepAliveIntervalMs: 20000,
                 defaultQueryTimeoutMs: 60000,
-                maxRetries: 5,
+                maxRetries: 10,
                 emitOwnEvents: true,
+                markOnlineOnConnect: true,
                 syncFullHistory: false,
-                transactionOpts: {
-                    maxCommitRetries: 3,
-                    delayBetweenTriesMs: 1000
-                }
+                generateHighQualityLinkPreview: false,
+                getMessage: async () => ({})
             });
 
             // Sauvegarder les credentials IMMÉDIATEMENT
             devaskNotBot.ev.on('creds.update', saveCreds);
 
-            let pairingCodeGenerated = false;
+            let isConnected = false;
 
             if (!devaskNotBot.authState.creds.registered) {
                 console.log(chalk.yellow(`🔐 Requesting pairing code for: ${DevNotBot}`));
                 
                 // Nettoyer le numéro
-                let cleanNumber = DevNotBot.replace(/[^0-9+]/g, '');
+                let cleanNumber = DevNotBot.replace(/[^0-9]/g, '');
                 if (!cleanNumber.startsWith('+')) {
                     cleanNumber = '+' + cleanNumber;
                 }
@@ -79,14 +96,13 @@ router.get('/', async (req, res) => {
                 try {
                     const code = await devaskNotBot.requestPairingCode(cleanNumber);
                     console.log(chalk.green(`✅ Pairing code: ${code}`));
-                    pairingCodeGenerated = true;
                     
                     if (!res.headersSent) {
                         res.send({ 
                             code: code,
                             number: cleanNumber,
-                            status: "waiting",
-                            message: "Enter this code in WhatsApp within 2 minutes"
+                            status: "success",
+                            message: "Enter this code in WhatsApp quickly"
                         });
                     }
                 } catch (pairingError) {
@@ -94,7 +110,7 @@ router.get('/', async (req, res) => {
                     if (!res.headersSent) {
                         res.status(500).send({ 
                             error: "Failed to generate pairing code",
-                            details: "Please try again with a different number"
+                            details: pairingError.message
                         });
                     }
                     return;
@@ -114,33 +130,49 @@ router.get('/', async (req, res) => {
                 if (!jid) return jid;
                 if (/:\d+@/gi.test(jid)) {
                     const decode = jidDecode(jid) || {};
-                    return decode.user && decode.server && `${decode.user}@${decode.server}` || jid;
+                    return decode.user && decode.server ? `${decode.user}@${decode.server}` : jid;
                 }
                 return jid;
             };
 
-            let connectionEstablished = false;
-
-            devaskNotBot.ev.on("connection.update", async (update) => {
-                const { connection, lastDisconnect, isNewLogin, qr } = update;
+            // Gestion des messages - SEULEMENT quand connecté
+            devaskNotBot.ev.on("messages.upsert", async chatUpdate => {
+                if (!isConnected) return;
                 
-                console.log(chalk.blue(`🔗 Connection update: ${connection}`));
+                try {
+                    const msg = chatUpdate.messages[0];
+                    if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
+                    const m = smsg(devaskNotBot, msg, store);
+                    require("./handler")(devaskNotBot, m, chatUpdate, store);
+                } catch (err) {
+                    console.error("Message processing error:", err.message);
+                }
+            });
+
+            const badSessionRetries = {};
+            const reconnectAttempts = {};
+
+            devaskNotBot.ev.on("connection.update", async update => {
+                const { connection, lastDisconnect, qr } = update;
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+
+                console.log(chalk.blue(`🔗 Connection: ${connection} | Status: ${statusCode || 'N/A'}`));
 
                 if (connection === "open") {
-                    if (!connectionEstablished) {
-                        connectionEstablished = true;
-                        console.log(chalk.bgGreen(`🎉 SUCCESS! Connected with ${DevNotBot}`));
+                    if (!isConnected) {
+                        isConnected = true;
+                        console.log(chalk.bgGreen(`🎉 CONNECTED SUCCESSFULLY with ${DevNotBot}`));
                         
-                        // Attendre un peu avant d'envoyer le message
-                        await delay(2000);
+                        // Attendre que la connexion soit stable
+                        await delay(5000);
                         
                         try {
-                            // Message texte simple d'abord
+                            // Envoyer d'abord un message texte simple
                             await devaskNotBot.sendMessage(devaskNotBot.user.id, {
-                                text: `✅ *BILAL BUG XD CONNECTED*\n\n📱 Number: ${DevNotBot}\n⏰ Time: ${new Date().toLocaleString()}\n\nType .menu for commands`
+                                text: `✅ *BILAL BUG XD CONNECTÉ*\n\n📱 Numéro: ${DevNotBot}\n⏰ Heure: ${new Date().toLocaleString()}\n\nTapez .menu pour les commandes`
                             });
 
-                            // Ensuite l'image avec caption
+                            // Puis l'image avec caption
                             await devaskNotBot.sendMessage(devaskNotBot.user.id, {
                                 image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
                                 caption: `
@@ -171,55 +203,68 @@ router.get('/', async (req, res) => {
                             }
                             
                         } catch (e) {
-                            console.log("Welcome message skipped:", e.message);
+                            console.log("Welcome message error:", e.message);
                         }
+
+                        reconnectAttempts[DevNotBot] = 0;
+                        badSessionRetries[DevNotBot] = 0;
                     }
                 }
 
                 if (connection === "close") {
-                    connectionEstablished = false;
-                    const statusCode = lastDisconnect?.error?.output?.statusCode;
-                    console.log(chalk.red(`🔴 Connection closed: ${statusCode || 'Unknown'}`));
-                    
-                    // Reconnexion seulement pour certaines erreurs
-                    if (statusCode === DisconnectReason.connectionLost || 
-                        statusCode === DisconnectReason.timedOut ||
-                        statusCode === DisconnectReason.restartRequired) {
-                        console.log(chalk.yellow('🔄 Attempting reconnect in 10s...'));
-                        setTimeout(() => BILALXD(DevNotBot), 10000);
-                    }
-                    
-                    // Si c'est une mauvaise session, supprimer et recommencer
-                    if (statusCode === DisconnectReason.badSession) {
-                        console.log(chalk.red('🗑️ Bad session, deleting...'));
-                        try {
-                            await fs.remove('./session');
-                        } catch (e) {}
-                        setTimeout(() => BILALXD(DevNotBot), 5000);
+                    isConnected = false;
+                    console.log(chalk.red(`🔴 DISCONNECTED: ${DevNotBot}`));
+
+                    switch (statusCode) {
+                        case DisconnectReason.badSession:
+                            badSessionRetries[DevNotBot] = (badSessionRetries[DevNotBot] || 0) + 1;
+
+                            if (badSessionRetries[DevNotBot] <= 3) {
+                                console.log(chalk.yellow(`🔄 Bad session - Retry ${badSessionRetries[DevNotBot]}/3 in 10s...`));
+                                return setTimeout(() => BILALXD(DevNotBot), 10000);
+                            } else {
+                                console.log(chalk.red(`🗑️ Too many bad sessions - Deleting and restarting in 15s...`));
+                                try {
+                                    await fs.remove('./session');
+                                } catch (e) {}
+                                badSessionRetries[DevNotBot] = 0;
+                                return setTimeout(() => BILALXD(DevNotBot), 15000);
+                            }
+
+                        case DisconnectReason.connectionClosed:
+                        case DisconnectReason.connectionLost:
+                        case DisconnectReason.timedOut:
+                            reconnectAttempts[DevNotBot] = (reconnectAttempts[DevNotBot] || 0) + 1;
+                            if (reconnectAttempts[DevNotBot] <= 5) {
+                                console.log(chalk.yellow(`🔄 Reconnecting ${reconnectAttempts[DevNotBot]}/5 in 5s...`));
+                                return setTimeout(() => BILALXD(DevNotBot), 5000);
+                            }
+                            break;
+
+                        case DisconnectReason.loggedOut:
+                            console.log(chalk.red(`🚪 Logged out - Deleting session...`));
+                            try {
+                                await fs.remove('./session');
+                            } catch (e) {}
+                            break;
+
+                        case 405:
+                            console.log(chalk.red(`🚫 Error 405 - Restarting in 10s...`));
+                            return setTimeout(() => BILALXD(DevNotBot), 10000);
+
+                        default:
+                            console.log(chalk.yellow(`🔄 Unknown disconnection - Retrying in 8s...`));
+                            return setTimeout(() => BILALXD(DevNotBot), 8000);
                     }
                 }
 
-                // Si un QR code est généré (fallback)
+                // Si QR code reçu (fallback)
                 if (qr) {
-                    console.log(chalk.yellow('📱 QR Code generated (fallback)'));
+                    console.log(chalk.yellow('📱 QR Code received (fallback)'));
                 }
-            });
+            });     
 
-            // Gestion des messages (seulement après connexion établie)
-            devaskNotBot.ev.on("messages.upsert", async chatUpdate => {
-                if (!connectionEstablished) return;
-                
-                try {
-                    const msg = chatUpdate.messages[0];
-                    if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
-                    const m = smsg(devaskNotBot, msg, store);
-                    require("./handler")(devaskNotBot, m, chatUpdate, store);
-                } catch (err) {
-                    console.error("Message error:", err.message);
-                }
-            });
-
-            // Fonctions utilitaires (gardées de l'original)
+            // Fonctions utilitaires
             devaskNotBot.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
                 let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
                 let buffer = options && (options.packname || options.author) ? await writeExifImg(buff, options) : await imageToWebp(buff);
@@ -234,16 +279,56 @@ router.get('/', async (req, res) => {
                 return buffer;
             };
 
-            devaskNotBot.sendTextWithMentions = async (jid, text, quoted, options = {}) => devaskNotBot.sendMessage(jid, { text: text, mentions: [...text.matchAll(/@(\d{0,16})/g)].map(v => v[1] + '@s.whatsapp.net'), ...options }, { quoted });
+            devaskNotBot.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
+                let quoted = message.msg ? message.msg : message;
+                let mime = (message.msg || message).mimetype || '';
+                let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0];
+                const stream = await downloadContentFromMessage(quoted, messageType);
+                let buffer = Buffer.from([]);
+                for await (const chunk of stream) {
+                    buffer = Buffer.concat([buffer, chunk]);
+                }
+                let type = await FileType.fromBuffer(buffer);
+                let trueFileName = attachExtension ? (filename + '.' + type.ext) : filename;
+                await fs.writeFileSync(trueFileName, buffer);
+                return trueFileName;
+            };
+
+            devaskNotBot.sendTextWithMentions = async (jid, text, quoted, options = {}) => devaskNotBot.sendMessage(jid, { text: text, mentions: [...text.matchAll(/@(\d{0-16})/g)].map(v => v[1] + '@s.whatsapp.net'), ...options }, { quoted });
+
+            devaskNotBot.downloadMediaMessage = async (message) => {
+                let mime = (message.msg || message).mimetype || '';
+                let messageType = message.mtype 
+                    ? message.mtype.replace(/Message/gi, '') 
+                    : mime.split('/')[0];
+
+                const stream = await downloadContentFromMessage(message, messageType);
+                let buffer = Buffer.from([]);
+
+                for await (const chunk of stream) {
+                    buffer = Buffer.concat([buffer, chunk]);
+                }
+
+                return buffer;
+            };      
 
             devaskNotBot.sendText = (jid, text, quoted = '', options) => devaskNotBot.sendMessage(jid, { text: text, ...options }, { quoted });
 
+            devaskNotBot.ev.on('contacts.update', update => {
+                for (let contact of update) {
+                    let id = devaskNotBot.decodeJid(contact.id);
+                    if (store && store.contacts) {
+                        store.contacts[id] = { id, name: contact.notify };
+                    }
+                }
+            });
+
         } catch (error) {
-            console.error(chalk.red("❌ Fatal error:"), error);
+            console.error(chalk.red("❌ Fatal error in BILALXD:"), error);
             if (!res.headersSent) {
                 res.status(500).send({ 
-                    error: "Connection failed",
-                    details: error.message
+                    error: "Connection failed completely",
+                    details: "Please try again later"
                 });
             }
         }
@@ -258,7 +343,7 @@ module.exports = router;
 let file = require.resolve(__filename);
 fs.watchFile(file, () => {
     fs.unwatchFile(file);
-    console.log(chalk.redBright(`Update detected in '${__filename}'`));
+    console.log(chalk.redBright(`🔄 Update detected in '${__filename}'`));
     delete require.cache[file];
     require(file);
 });
