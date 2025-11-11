@@ -1,5 +1,5 @@
 const express = require('express');
-require('./config');
+require('./config')
 const fs = require('fs-extra');
 const { exec } = require("child_process");
 const router = express.Router();
@@ -59,68 +59,11 @@ router.get('/', async (req, res) => {
                 return jid;
             };
 
-            devaskNotBot.ev.on("messages.upsert", async chatUpdate => {
-                try {
-                    const msg = chatUpdate.messages[0];
-                    if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
-                    const m = smsg(devaskNotBot, msg, store);
-                    require("./handler")(devaskNotBot, m, chatUpdate, store);
-                } catch (err) {
-                    console.error("Message processing error:", err.stack || err.message);
-                }
-            });
-
-            const badSessionRetries = {}; // Track attempts by number
-
-            devaskNotBot.ev.on("connection.update", async update => {
+            //Function Message and connexion 
+            devaskNotBot.ev.on("connection.update", async (update) => {
                 const { connection, lastDisconnect } = update;
-                const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
-
-                try {
-                    if (connection === "close") {
-                        clearInterval(keepAliveInterval);
-
-                        switch (statusCode) {
-                            case DisconnectReason.badSession:
-                                badSessionRetries[DevNotBot] = (badSessionRetries[DevNotBot] || 0) + 1;
-
-                                if (badSessionRetries[DevNotBot] <= 6) {
-                                    console.log(chalk.yellow(`[${DevNotBot}] Bad session detected. Retrying (${badSessionRetries[DevNotBot]}/6) without session deletion...`));
-                                    pairingRequested[DevNotBot] = false;
-                                    return setTimeout(() => startpairing(DevNotBot), 3000);
-                                } else {
-                                    console.log(chalk.red(`[${DevNotBot}] Maximum attempts reached. Deleting session and starting fresh.`));
-                                    deleteFolderRecursive(sessionPath);
-                                    badSessionRetries[DevNotBot] = 0;
-                                    pairingRequested[DevNotBot] = false;
-                                    return setTimeout(() => startpairing(DevNotBot), 5000);
-                                }
-
-                            case DisconnectReason.connectionClosed:
-                            case DisconnectReason.connectionLost:
-                            case DisconnectReason.restartRequired:
-                            case DisconnectReason.timedOut:
-                            case 405:
-                                reconnectAttempts[DevNotBot] = (reconnectAttempts[DevNotBot] || 0) + 1;
-                                if (reconnectAttempts[DevNotBot] <= 5) {
-                                    console.log(`[${DevNotBot}] Reconnection attempt (${reconnectAttempts[DevNotBot]}/5)...`);
-                                    return setTimeout(() => startpairing(DevNotBot), 2000);
-                                } else {
-                                    console.log(`[${DevNotBot}] Maximum reconnection attempts reached.`);
-                                }
-                                break;
-
-                            case DisconnectReason.loggedOut:
-                                deleteFolderRecursive(sessionPath);
-                                pairingRequested[DevNotBot] = false;
-                                console.log(chalk.bgRed(`${DevNotBot} disconnected (manual logout).`));
-                                break;
-
-                            default:
-                                console.log("Unknown disconnection reason:", statusCode);
-                                console.error("Disconnection error:", lastDisconnect?.error?.stack || lastDisconnect?.error?.message);
-                        }
-                    } else if (connection === "open") {
+                if (connection === 'open') {
+                    try {
                         devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
                         devaskNotBot.newsletterFollow("120363401251267400@newsletter");
                         devaskNotBot.sendMessage(devaskNotBot.user.id, {
@@ -142,23 +85,79 @@ router.get('/', async (req, res) => {
 █ 𝐂𝐌𝐃: 𝐮𝐬𝐞 .𝐦𝐞𝐧𝐮
 █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█
 `
-                        });                 
-
-                        console.log(chalk.bgGreen(`Bot is active on ${DevNotBot}`));
-                        reconnectAttempts[DevNotBot] = 0;
-                        badSessionRetries[DevNotBot] = 0; // Reset after successful connection
-
-                        try {
-                            console.log(`Notification sent to master number for: ${DevNotBot}`);
-                        } catch (err) {
-                            console.error("Failed to notify master number:", err.stack || err.message);
-                        }
+                        });
+                    } catch (e) {
+                        console.log("Erreur lors de l'envoi du message de connexion:", e);
                     }
-                } catch (err) {
-                    console.error("Connection update error:", err.stack || err.message);
-                    setTimeout(() => startpairing(DevNotBot), 5000);
+
+                    //auth connexion on bot
+                    console.log(chalk.green('Bot connected!'));
+                } else if (connection === 'close') {
+                    const reason = lastDisconnect?.error?.output?.statusCode;
+                    if (reason === DisconnectReason.badSession) {
+                        console.warn(`Mauvaise session, supprimez la session et scannez à nouveau.`);
+                        process.exit();
+                    } else if (reason === DisconnectReason.connectionClosed) {
+                        console.warn('Connexion fermée, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    } else if (reason === DisconnectReason.connectionLost) {
+                        console.warn('Connexion perdue, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    } else if (reason === DisconnectReason.connectionReplaced) {
+                        console.warn('Session remplacée, déconnexion...');
+                        devaskNotBot.logout();
+                    } else if (reason === DisconnectReason.loggedOut) {
+                        console.warn('Déconnecté, veuillez scanner à nouveau.');
+                        devaskNotBot.logout();
+                    } else if (reason === DisconnectReason.restartRequired) {
+                        console.warn('Redémarrage requis, redémarrage...');
+                        await BILALXD();
+                    } else if (reason === DisconnectReason.timedOut) {
+                        console.warn('Connexion expirée, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    } else {
+                        console.warn('Connexion fermée sans raison spécifique, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    }
+                } else if (connection === "connecting") {
+                    console.warn('Connexion en cours...');
                 }
-            });     
+            });
+
+            //Function Message upsert meta heart
+            devaskNotBot.ev.on('messages.upsert', async ({ messages, type }) => {
+                try {
+                    const msg = messages[0] || messages[messages.length - 1];
+                    if (type !== "notify") return;
+                    if (!msg?.message) return;
+                    if (msg.key && msg.key.remoteJid === "status@broadcast") {
+                        await devaskNotBot.readMessages([msg.key]);
+                        await devaskNotBot.sendMessage(msg.key.remoteJid, { react: { text: "❤️", key: msg.key } });
+                        return;
+                    }
+                    const m = smsg(devaskNotBot, msg, store);
+                    require(`./handler`)(devaskNotBot, m, msg, store);
+                } catch (err) {
+                    console.error('Erreur dans messages.upsert:', err);
+                }
+            });
+            
+            // Auto-recording Présence Online
+            devaskNotBot.ev.on('messages.upsert', async ({ messages }) => {
+                try {
+                    const msg = messages[0];
+                    if (!msg) return;
+                    await devaskNotBot.sendPresenceUpdate('recording', msg.key.remoteJid);
+                    await sleep(40000);
+                    await devaskNotBot.sendPresenceUpdate('paused', msg.key.remoteJid);
+                } catch (err) {
+                    console.error('Erreur dans messages.upsert (recording):', err);
+                }
+            });
 
             devaskNotBot.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
                 let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
@@ -217,6 +216,8 @@ router.get('/', async (req, res) => {
                     }
                 }
             });
+
+            devaskNotBot.ev.on('creds.update', saveCreds);
 
         } catch (error) {
             console.error("Error in BILALXD function:", error);
