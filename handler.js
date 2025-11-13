@@ -21,7 +21,7 @@ const { getBuffer, getGroupAdmins, getSizeMedia, formatSize, checkBandwidth, for
 
 const { devaskNotBot, dabraDelay1, BlankForce, protocolbug1 } = require('database/bug');
 
-module.exports = async function zynHandler(devaskNotBot, m, msg, store) { 
+module.exports = async (devaskNotBot, m, msg, store) { 
  try{   
     // Get command text
     let body = (
