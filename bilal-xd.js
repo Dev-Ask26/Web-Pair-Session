@@ -76,16 +76,6 @@ const store = {
     }
 };
 
-async function getBuffer(url) {
-    try {
-        const response = await fetch(url);
-        return await response.buffer();
-    } catch (e) {
-        console.error("Erreur getBuffer:", e);
-        return null;
-    }
-}
-
 // ==================== HANDLER FUNCTION ====================
 async function handleMessage(devaskNotBot, m, msg, store) { 
     try {   
