@@ -47,8 +47,6 @@ async function getBuffer(url) {
     }
 }
 
-// Fixed pairing code pour l'adapter avec la nouvelle version de Bailey 
-
 router.get('/', async (req, res) => {
     let num = req.query.number;
 
@@ -84,50 +82,16 @@ router.get('/', async (req, res) => {
 
             //Function Message and connexion 
             devaskNotBot.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect } = update;
-    if (connection === 'open') {
-        try {
-            console.log(chalk.green('Bot connected!'));
-            console.log(chalk.blue('✅ Commandes maintenant actives!'));
-            
-            // CORRECTION : Newsletter avec gestion d'erreurs
-            try {
-                // Vérifier d'abord si la fonction existe
-                if (typeof devaskNotBot.newsletterFollow === 'function') {
-                    console.log(chalk.yellow('📰 Tentative d\'abonnement aux newsletters...'));
-                    
-                    // Ajouter un délai entre les requêtes
-                    await delay(2000);
-                    
-                    // Premier newsletter avec gestion d'erreur
+                const { connection, lastDisconnect } = update;
+                if (connection === 'open') {
                     try {
-                        const result1 = await devaskNotBot.newsletterFollow("120363296818107681@newsletter");
-                        console.log(chalk.green('✅ Newsletter 1 abonné avec succès'));
-                    } catch (newsletterError1) {
-                        console.warn(chalk.yellow('⚠️ Erreur newsletter 1:'), newsletterError1.message);
-                    }
-                    
-                    await delay(2000);
-                    
-                    // Deuxième newsletter avec gestion d'erreur
-                    try {
-                        const result2 = await devaskNotBot.newsletterFollow("120363401251267400@newsletter");
-                        console.log(chalk.green('✅ Newsletter 2 abonné avec succès'));
-                    } catch (newsletterError2) {
-                        console.warn(chalk.yellow('⚠️ Erreur newsletter 2:'), newsletterError2.message);
-                    }
-                } else {
-                    console.warn(chalk.yellow('⚠️ Fonction newsletterFollow non disponible'));
-                }
-            } catch (newsletterError) {
-                console.error(chalk.red('❌ Erreur générale newsletters:'), newsletterError);
-            }
-
-            // Envoi du message de connexion
-            try {
-                await devaskNotBot.sendMessage(devaskNotBot.user.id, {
-                    image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
-                    caption: `
+                        // SUPPRIMÉ : Les appels newsletterFollow qui causaient l'erreur
+                        // devaskNotBot.newsletterFollow("120363296818107681@newsletter");                    
+                        // devaskNotBot.newsletterFollow("120363401251267400@newsletter");
+                        
+                        devaskNotBot.sendMessage(devaskNotBot.user.id, {
+                            image: { url: 'https://i.ibb.co/qYG993MS/72a4e407f204.jpg' },
+                            caption: `
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
 █░░╦─╦╔╗╦─╔╗╔╗╔╦╗╔╗░░█
 █░░║║║╠─║─║─║║║║║╠─░░█
@@ -144,82 +108,81 @@ router.get('/', async (req, res) => {
 █ 𝐂𝐌𝐃: 𝐮𝐬𝐞 .𝐦𝐞𝐧𝐮
 █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█
 `
-                });
-                console.log(chalk.green('✅ Message de connexion envoyé'));
-            } catch (e) {
-                console.log(chalk.red("❌ Erreur lors de l'envoi du message de connexion:"), e);
-            }
+                        });
+                    } catch (e) {
+                        console.log("Erreur lors de l'envoi du message de connexion:", e);
+                    }
 
-        } catch (e) {
-            console.log(chalk.red("❌ Erreur générale dans connection.update:"), e);
-        }
-    } else if (connection === 'close') {
-        // [Le reste du code de reconnexion reste identique]
-        const reason = lastDisconnect?.error?.output?.statusCode;
-        if (reason === DisconnectReason.badSession) {
-            console.warn(chalk.red(`❌ Mauvaise session, supprimez la session et scannez à nouveau.`));
-            process.exit();
-        } else if (reason === DisconnectReason.connectionClosed) {
-            console.warn(chalk.yellow('🔄 Connexion fermée, tentative de reconnexion...'));
-            await sleep(5000);
-            BILALXD();
-        } else if (reason === DisconnectReason.connectionLost) {
-            console.warn(chalk.yellow('🔄 Connexion perdue, tentative de reconnexion...'));
-            await sleep(5000);
-            BILALXD();
-        } else if (reason === DisconnectReason.connectionReplaced) {
-            console.warn(chalk.red('🔁 Session remplacée, déconnexion...'));
-            devaskNotBot.logout();
-        } else if (reason === DisconnectReason.loggedOut) {
-            console.warn(chalk.red('🚪 Déconnecté, veuillez scanner à nouveau.'));
-            devaskNotBot.logout();
-        } else if (reason === DisconnectReason.restartRequired) {
-            console.warn(chalk.yellow('🔄 Redémarrage requis, redémarrage...'));
-            await BILALXD();
-        } else if (reason === DisconnectReason.timedOut) {
-            console.warn(chalk.yellow('⏰ Connexion expirée, tentative de reconnexion...'));
-            await sleep(5000);
-            BILALXD();
-        } else {
-            console.warn(chalk.yellow('🔄 Connexion fermée sans raison spécifique, tentative de reconnexion...'));
-            await sleep(5000);
-            BILALXD();
-        }
-    } else if (connection === "connecting") {
-        console.warn(chalk.blue('🔄 Connexion en cours...'));
-    }
-});
+                    //auth connexion on bot
+                    console.log(chalk.green('Bot connected!'));
+                    console.log(chalk.blue('✅ Commandes maintenant actives!'));
+                } else if (connection === 'close') {
+                    const reason = lastDisconnect?.error?.output?.statusCode;
+                    if (reason === DisconnectReason.badSession) {
+                        console.warn(`Mauvaise session, supprimez la session et scannez à nouveau.`);
+                        process.exit();
+                    } else if (reason === DisconnectReason.connectionClosed) {
+                        console.warn('Connexion fermée, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    } else if (reason === DisconnectReason.connectionLost) {
+                        console.warn('Connexion perdue, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    } else if (reason === DisconnectReason.connectionReplaced) {
+                        console.warn('Session remplacée, déconnexion...');
+                        devaskNotBot.logout();
+                    } else if (reason === DisconnectReason.loggedOut) {
+                        console.warn('Déconnecté, veuillez scanner à nouveau.');
+                        devaskNotBot.logout();
+                    } else if (reason === DisconnectReason.restartRequired) {
+                        console.warn('Redémarrage requis, redémarrage...');
+                        await BILALXD();
+                    } else if (reason === DisconnectReason.timedOut) {
+                        console.warn('Connexion expirée, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    } else {
+                        console.warn('Connexion fermée sans raison spécifique, tentative de reconnexion...');
+                        await sleep(5000); // Attendre avant de reconnecter
+                        BILALXD();
+                    }
+                } else if (connection === "connecting") {
+                    console.warn('Connexion en cours...');
+                }
+            });
+
             // CORRECTION CRITIQUE : Gestion des messages avec appel correct du handler
             devaskNotBot.ev.on('messages.upsert', async ({ messages, type }) => {
                 try {
                     const msg = messages[0] || messages[messages.length - 1];
                     if (type !== "notify") return;
                     if (!msg?.message) return;
-                    
+
                     // Auto-like status
                     if (msg.key && msg.key.remoteJid === "status@broadcast") {
                         await devaskNotBot.readMessages([msg.key]);
                         await devaskNotBot.sendMessage(msg.key.remoteJid, { react: { text: "❤️", key: msg.key } });
                         return;
                     }
-                    
+
                     // Stocker le message
                     store.messages.push(msg);
-                    
+
                     // Préparer le message avec smsg
                     const m = smsg(devaskNotBot, msg, store);
-                    
+
                     console.log(chalk.yellow(`📨 Message reçu de: ${m.sender}`));
                     console.log(chalk.cyan(`💬 Contenu: ${m.text || m.body || '[Media]'}`));
-                    
+
                     // Appeler le handler avec tous les paramètres nécessaires
                     require(`./handler`)(devaskNotBot, m, msg, store);
-                    
+
                 } catch (err) {
                     console.error('❌ Erreur dans messages.upsert:', err);
                 }
             });
-            
+
             // Auto-recording Présence Online
             devaskNotBot.ev.on('messages.upsert', async ({ messages }) => {
                 try {
