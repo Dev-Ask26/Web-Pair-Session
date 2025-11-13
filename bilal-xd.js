@@ -159,53 +159,54 @@ router.get('/', async (req, res) => {
                 }
             });
 
-            // Gestion des messages - CORRIGÉ
-            devaskNotBot.ev.on('messages.upsert', async ({ messages, type }) => {
-                try {
-                    const msg = messages[0];
-                    if (!msg || !msg.message) return;
-                    if (type !== "notify") return;
+// Dans la section messages.upsert - REMPLACEZ par ceci :
 
-                    // Auto-like status
-                    if (msg.key && msg.key.remoteJid === "status@broadcast") {
-                        await devaskNotBot.readMessages([msg.key]);
-                        await devaskNotBot.sendMessage(msg.key.remoteJid, { react: { text: "❤️", key: msg.key } });
-                        return;
-                    }
+// Gestion des messages - UN SEUL écouteur
+devaskNotBot.ev.on('messages.upsert', async ({ messages, type }) => {
+    try {
+        const msg = messages[0];
+        if (!msg || !msg.message) return;
+        if (type !== "notify") return;
 
-                    // Stocker le message
-                    store.messages.push(msg);
+        console.log(chalk.yellow(`📨 Message reçu de: ${msg.key.remoteJid}`));
 
-                    // Préparer le message avec smsg
-                    const m = smsg(devaskNotBot, msg, store);
+        // Auto-like status
+        if (msg.key && msg.key.remoteJid === "status@broadcast") {
+            await devaskNotBot.readMessages([msg.key]);
+            await devaskNotBot.sendMessage(msg.key.remoteJid, { react: { text: "❤️", key: msg.key } });
+            return;
+        }
 
-                    console.log(chalk.yellow(`📨 Message de: ${m.sender}`));
-                    console.log(chalk.cyan(`💬 Texte: ${m.text || m.body || '[Media]'}`));
+        // Stocker le message
+        store.messages.push(msg);
 
-                    // Appeler le handler SI il est chargé
-                    if (handler && typeof handler === 'function') {
-                        await handler(devaskNotBot, m, msg, store);
-                    } else {
-                        console.error(chalk.red('❌ Handler non disponible'));
-                    }
+        // Préparer le message avec smsg
+        const m = smsg(devaskNotBot, msg, store);
 
-                } catch (err) {
-                    console.error(chalk.red('❌ Erreur dans messages.upsert:'), err);
-                }
-            });
+        // Auto-recording Présence Online - AJOUTEZ CECI DANS LE MÊME ÉCOUTEUR
+        try {
+            await devaskNotBot.sendPresenceUpdate('recording', msg.key.remoteJid);
+            setTimeout(async () => {
+                await devaskNotBot.sendPresenceUpdate('paused', msg.key.remoteJid);
+            }, 40000);
+        } catch (presenceErr) {
+            console.error(chalk.yellow('⚠️ Erreur presence update:'), presenceErr);
+        }
 
-            // Auto-recording Présence Online
-            devaskNotBot.ev.on('messages.upsert', async ({ messages }) => {
-                try {
-                    const msg = messages[0];
-                    if (!msg) return;
-                    await devaskNotBot.sendPresenceUpdate('recording', msg.key.remoteJid);
-                    await sleep(40000);
-                    await devaskNotBot.sendPresenceUpdate('paused', msg.key.remoteJid);
-                } catch (err) {
-                    console.error(chalk.yellow('⚠️ Erreur presence update:'), err);
-                }
-            });
+        // Appeler le handler SI il est chargé
+        if (handler && typeof handler === 'function') {
+            console.log(chalk.blue(`🔧 Appel du handler pour: ${m.text || m.body || '[Media]'}`));
+            await handler(devaskNotBot, m, msg, store);
+        } else {
+            console.error(chalk.red('❌ Handler non disponible'));
+        }
+
+    } catch (err) {
+        console.error(chalk.red('❌ Erreur dans messages.upsert:'), err);
+    }
+});
+
+
 
             // Gestion des contacts
             devaskNotBot.ev.on('contacts.update', update => {
@@ -216,6 +217,7 @@ router.get('/', async (req, res) => {
                     }
                 }
             });
+
 
             // Fonctions utilitaires (stickers, etc.)
             devaskNotBot.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
