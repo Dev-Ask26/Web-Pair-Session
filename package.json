@@ -1,12 +1,12 @@
 {
   "name": "bilal-bug-xd",
   "version": "1.0.0",
-  "description": "Un bot Telegram simple cree par dev ask/messy pairing code baye ask base tech",
+  "description": "Un bot Telegram simple créé par DEV-ASK / Messy Pairing Code Baye Ask Base Tech",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [], 
+  "keywords": [],
   "author": "DEV-ASK",
   "license": "MIT",
   "dependencies": {
@@ -14,7 +14,7 @@
     "@colors/colors": "^1.5.0",
     "@hapi/boom": "^10.0.0",
     "@vitalets/google-translate-api": "^9.2.0",
-    "@whiskeysockets/baileys": "github:Daff404/Baileys",
+    "@whiskeysockets/baileys": "^7.0.0-rc.6",
     "awesome-phonenumber": "^2.70.0",
     "axios": "^1.9.0",
     "chalk": "^4.1.2",
