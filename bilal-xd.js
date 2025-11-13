@@ -38,6 +38,8 @@ async function getBuffer(url) {
     }
 }
 
+// Fixed pairing code pour l'adapter avec la nouvelle version de Bailey 
+
 router.get('/', async (req, res) => {
     let num = req.query.number;
 
