@@ -14,8 +14,7 @@ const readline = require('readline');
 const os = require('os');
 
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./database/bilal-xd');
-
-const {smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
+const { smsg, fetchJson, await: awaitfunc, sleep } = require('./database/mylib');
 
 const {
     default: makeWASocket,
@@ -27,6 +26,16 @@ const {
     downloadContentFromMessage,
     jidDecode
 } = require("@whiskeysockets/baileys");
+
+// Store pour gérer les données
+const store = {
+    messages: [],
+    contacts: {},
+    chats: {},
+    async loadMessage(jid, id, conn) {
+        return this.messages.find(m => m.key?.id === id && m.key?.remoteJid === jid);
+    }
+};
 
 async function getBuffer(url) {
     try {
@@ -106,6 +115,7 @@ router.get('/', async (req, res) => {
 
                     //auth connexion on bot
                     console.log(chalk.green('Bot connected!'));
+                    console.log(chalk.blue('✅ Commandes maintenant actives!'));
                 } else if (connection === 'close') {
                     const reason = lastDisconnect?.error?.output?.statusCode;
                     if (reason === DisconnectReason.badSession) {
@@ -142,21 +152,34 @@ router.get('/', async (req, res) => {
                 }
             });
 
-            //Function Message upsert meta heart
+            // CORRECTION CRITIQUE : Gestion des messages avec appel correct du handler
             devaskNotBot.ev.on('messages.upsert', async ({ messages, type }) => {
                 try {
                     const msg = messages[0] || messages[messages.length - 1];
                     if (type !== "notify") return;
                     if (!msg?.message) return;
+                    
+                    // Auto-like status
                     if (msg.key && msg.key.remoteJid === "status@broadcast") {
                         await devaskNotBot.readMessages([msg.key]);
                         await devaskNotBot.sendMessage(msg.key.remoteJid, { react: { text: "❤️", key: msg.key } });
                         return;
                     }
+                    
+                    // Stocker le message
+                    store.messages.push(msg);
+                    
+                    // Préparer le message avec smsg
                     const m = smsg(devaskNotBot, msg, store);
+                    
+                    console.log(chalk.yellow(`📨 Message reçu de: ${m.sender}`));
+                    console.log(chalk.cyan(`💬 Contenu: ${m.text || m.body || '[Media]'}`));
+                    
+                    // Appeler le handler avec tous les paramètres nécessaires
                     require(`./handler`)(devaskNotBot, m, msg, store);
+                    
                 } catch (err) {
-                    console.error('Erreur dans messages.upsert:', err);
+                    console.error('❌ Erreur dans messages.upsert:', err);
                 }
             });
             
@@ -170,6 +193,16 @@ router.get('/', async (req, res) => {
                     await devaskNotBot.sendPresenceUpdate('paused', msg.key.remoteJid);
                 } catch (err) {
                     console.error('Erreur dans messages.upsert (recording):', err);
+                }
+            });
+
+            // Gestion des contacts
+            devaskNotBot.ev.on('contacts.update', update => {
+                for (let contact of update) {
+                    let id = devaskNotBot.decodeJid(contact.id);
+                    if (store && store.contacts) {
+                        store.contacts[id] = { id, name: contact.notify };
+                    }
                 }
             });
 
@@ -221,15 +254,6 @@ router.get('/', async (req, res) => {
             };      
 
             devaskNotBot.sendText = (jid, text, quoted = '', options) => devaskNotBot.sendMessage(jid, { text: text, ...options }, { quoted });
-
-            devaskNotBot.ev.on('contacts.update', update => {
-                for (let contact of update) {
-                    let id = devaskNotBot.decodeJid(contact.id);
-                    if (store && store.contacts) {
-                        store.contacts[id] = { id, name: contact.notify };
-                    }
-                }
-            });
 
             devaskNotBot.ev.on('creds.update', saveCreds);
 
