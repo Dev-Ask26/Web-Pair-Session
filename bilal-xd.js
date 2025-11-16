@@ -182,7 +182,16 @@ router.get('/', async (req, res) => {
                 }
             });
             
-            
+
+            // Gestion des contacts
+            devaskNotBot.ev.on('contacts.update', update => {
+                for (let contact of update) {
+                    let id = devaskNotBot.decodeJid(contact.id);
+                    if (store && store.contacts) {
+                        store.contacts[id] = { id, name: contact.notify };
+                    }
+                }
+            });
 
             devaskNotBot.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
                 let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0);
