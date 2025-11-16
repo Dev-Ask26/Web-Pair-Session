@@ -151,36 +151,19 @@ router.get('/', async (req, res) => {
                 }
             });
 
-            // CORRECTION CRITIQUE : Gestion des messages avec appel correct du handler
-            devaskNotBot.ev.on('messages.upsert', async ({ messages, type }) => {
-                try {
-                    const msg = messages[0] || messages[messages.length - 1];
-                    if (type !== "notify") return;
-                    if (!msg?.message) return;
-                    
-                    // Auto-like status
-                    if (msg.key && msg.key.remoteJid === "status@broadcast") {
-                        await devaskNotBot.readMessages([msg.key]);
-                        await devaskNotBot.sendMessage(msg.key.remoteJid, { react: { text: "❤️", key: msg.key } });
-                        return;
-                    }
-                    
-                    // Stocker le message
-                    store.messages.push(msg);
-                    
-                    // Préparer le message avec smsg
-                    const m = smsg(devaskNotBot, msg, store);
-                    
-                    console.log(chalk.yellow(`📨 Message reçu de: ${m.sender}`));
-                    console.log(chalk.cyan(`💬 Contenu: ${m.text || m.body || '[Media]'}`));
-                    
-                    // Appeler le handler avec tous les paramètres nécessaires
-                    require(`./handler`)(devaskNotBot, m, msg, store);
-                    
-                } catch (err) {
-                    console.error('❌ Erreur dans messages.upsert:', err);
-                }
-            });
+                // ==================== Messages ====================
+    devaskNotBot.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (type !== 'notify') return;
+      for (const msg of messages) {
+        if (!msg?.message) continue;
+        const m = smsg(devaskNotBot, msg);
+        try { 
+          require('./handler')(devaskNotBot, m, msg, undefined); 
+        } catch (err) { 
+          console.error('❌ Erreur message DevAsk :', err); 
+        }
+      }
+    });
             
 
             // Gestion des contacts
